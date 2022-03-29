@@ -1,0 +1,131 @@
+Agent57:
+  torso:
+    conv_layers:
+      layer_0:
+        filters: 32
+        kernel_size: 8
+        strides: 4
+        activation: 'relu'
+      layer_1:
+        filters: 64
+        kernel_size: 4
+        strides: 2
+        activation: 'relu'
+      layer_3:
+        filters: 64
+        kernel_size: 3
+        strides: 1
+        activation: 'relu'
+    dense_layers:
+      layer_4:
+        units: 512
+        activation: 'relu'
+  lstm:
+    units: 512
+  dual_heads:
+    hidden_units: 512
+    hidden_activation: 'relu'
+    num_actions: 18
+RND:
+  conv_layers:
+    layer_0:
+      filters: 32
+      kernel_size: 8
+      strides: 4
+      activation: 'relu'
+    layer_1:
+      filters: 64
+      kernel_size: 4
+      strides: 2
+      activation: 'relu'
+    layer_3:
+      filters: 64
+      kernel_size: 3
+      strides: 1
+      activation: 'relu'
+  dense_layers:
+    layer_4:
+      units: 128
+      activation: 'linear'
+EmbeddingNetwork:
+  torso:
+    conv_layers:
+      layer_0:
+        filters: 32
+        kernel_size: 8
+        strides: 4
+        activation: 'relu'
+      layer_1:
+        filters: 64
+        kernel_size: 4
+        strides: 2
+        activation: 'relu'
+      layer_3:
+        filters: 64
+        kernel_size: 3
+        strides: 1
+        activation: 'relu'
+    dense_layers:
+      layer_4:
+        units: 32
+        activation: 'relu'
+  predictor:
+    layer_5:
+      units: 128
+      activation: 'relu'
+    layer_6:
+      units: 18
+      activation: 'softmax'
+EpisodicMemory:
+  k: 10
+  max_size: 30000
+  depth: 32
+  maximum_similarity: 8.
+  c: .001
+  epsilon: .0001
+  cluster_distance: .008
+Misc:
+  dtype: float32
+  render_actor: True
+  environment: 'DemonAttack-v4' #'Breakout-v0' #'MontezumaRevenge-v4' #'Solaris-v4'
+  obs_type: 'grayscale'
+  obs_shape: [1,210,160,1]
+  frameskip: False
+  reward_scale: 1
+  zero_discount_on_life_loss: True
+  N: 32 # must be greater than 9
+  L: 256
+  greed_e: .4
+  greed_a: 8.
+  bandit_window_size: 90
+  bandit_beta: 1.
+  bandit_e: .5
+  bandit_save_period: 32
+  evaluation_iterations: 5
+  trace_length: 160
+  replay_period: 80
+  min_required_sequences: 6250
+  database_size_limit:  930 # in GBs
+  target_free_space:  30 # in GBs
+  max_episode_length: 7500 # in steps
+  bandit_ip: '127.0.0.1' #
+  bandit_port: 5057
+  bandit_workers: 2
+  weights_ip: '127.0.0.1' #
+  weights_port: 5056
+  weights_workers: 1
+  replay_ip: '127.0.0.1'
+  replay_port_range: [5055,5054]
+  replay_workers: 1
+  training_batch_size: 64
+  consecutive_training_batches: 2
+  actor_weight_update: 160
+  target_weight_update: 500
+  retrace_lambda: .95
+  consecutive_batches: 2
+  batch_splits: 1
+  download_period: 60
+  split_stream: True
+  checkpoint_period: 100
+  break_training_loop_early: False
+  training_splits: 4
