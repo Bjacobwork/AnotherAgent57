@@ -92,7 +92,7 @@ Misc:
   obs_shape: [ 1,210,160,1 ]
   frameskip: False
   reward_scale: 1
-  zero_discount_on_life_loss: True
+  zero_discount_on_life_loss: False
   N: 32 # must be greater than 9
   L: 256
   greed_e: .4
@@ -109,10 +109,10 @@ Misc:
   database_size_limit: 930 # in GBs
   target_free_space: 30 # in GBs
   max_episode_length: 7500 # in steps
-  bandit_ip: '127.0.0.1' #
+  bandit_ip: '127.0.0.1'
   bandit_port: 5057
   bandit_workers: 2
-  weights_ip: '127.0.0.1' #
+  weights_ip: '127.0.0.1'
   weights_port: 5056
   weights_workers: 1
   replay_ip: '127.0.0.1'
