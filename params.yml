@@ -97,7 +97,7 @@ Misc:
   L: 256
   greed_e: .4
   greed_a: 8.
-  evaluate_modified_reward: True
+  evaluate_modified_reward: False
   bandit_window_size: 90
   bandit_beta: 1.
   bandit_e: .5
@@ -120,8 +120,8 @@ Misc:
   replay_workers: 1
   training_batch_size: 64
   consecutive_training_batches: 2
-  actor_weight_update: 160
-  target_weight_update: 500
+  actor_weight_update: 400
+  target_weight_update: 1500
   retrace_lambda: .95
   consecutive_batches: 2
   batch_splits: 1
@@ -129,4 +129,4 @@ Misc:
   split_stream: True
   checkpoint_period: 100
   break_training_loop_early: False
-  training_splits: 4
+  training_splits: 1
