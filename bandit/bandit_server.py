@@ -39,6 +39,7 @@ def worker(socket, params, lock, address, root_dir):
             print(e)
             print(datetime.datetime.now())
 
+
 def server(params, root_dir):
     from multiprocessing import Lock, Process
     mab_lock = Lock()
@@ -55,8 +56,10 @@ def server(params, root_dir):
     while True:
         pass
 
+
 if __name__ == "__main__":
     import yaml
+
     with open('../params.yml', 'r') as file:
         params = yaml.full_load(file)
     server(params, "../bandit_config")

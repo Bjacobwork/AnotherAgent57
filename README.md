@@ -77,6 +77,7 @@ Layers can be added and removed from the model, excluding the lstm, so long as t
 | L | int | The number of agents in a batch. Each agent has a different probability of taking a random action. |
 | greed_e | float | The maximum probability of taking a random action. |
 | greed_a | float | Controls the rate of decay for selecting the random action probability across the batch. The larger value, the faster it decays. |
+| evaluate_modified_reward | bool | If true, the modified reward is used to train the bandit, else the extrinsic reward is used. |
 | bandit_window_size | int | The window of past rewards the bandit considers when choosing a policy. |
 | bandit_beta | float | Scales the bandit's exploration factor. |
 | bandit_e | float | Probability of returning a random policy. |

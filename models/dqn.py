@@ -1,18 +1,21 @@
 import tensorflow as tf
 
+
 def h(x):
     eps = 1e-3
     sign = tf.math.sign(x)
     a = tf.math.abs(x)
-    sqr = tf.math.sqrt(a+1.)
-    sqr = sign*(sqr-1)
-    return sqr + eps*x
+    sqr = tf.math.sqrt(a + 1.)
+    sqr = sign * (sqr - 1)
+    return sqr + eps * x
+
 
 def h_inverse(x):
     eps = 1e-3
     sign = tf.math.sign(x)
     a = tf.abs(x)
-    return sign*(tf.square((tf.math.sqrt(1.+4.*eps*(a+1+eps))-1.)/(2*eps))-1.)
+    return sign * (tf.square((tf.math.sqrt(1. + 4. * eps * (a + 1 + eps)) - 1.) / (2 * eps)) - 1.)
+
 
 class BetterFlatten(tf.keras.layers.Layer):
 
@@ -21,9 +24,10 @@ class BetterFlatten(tf.keras.layers.Layer):
 
     def call(self, inputs):
         shape = inputs.shape.as_list()
-        shape = shape[:-3]+[shape[-3]*shape[-2]*shape[-1]]
+        shape = shape[:-3] + [shape[-3] * shape[-2] * shape[-1]]
         shape[0] = -1
         return tf.reshape(inputs, shape)
+
 
 def get_convolutional_torso(params):
     layers = []
@@ -44,6 +48,7 @@ def get_convolutional_torso(params):
         layers.append(tf.keras.layers.Dense(units, activation=activation))
     return tf.keras.Sequential(layers)
 
+
 class DualingHeads(tf.keras.Model):
 
     def __init__(self, params):
@@ -62,6 +67,7 @@ class DualingHeads(tf.keras.Model):
         x = tf.add(x, adv)
         return tf.subtract(x, m)
 
+
 class R2D2(tf.keras.Model):
 
     def __init__(self, params):
@@ -69,7 +75,7 @@ class R2D2(tf.keras.Model):
         self.conv_torso = get_convolutional_torso(params['torso'])
         self.lstm = tf.keras.layers.LSTM(params['lstm']['units'], return_state=True)
         self.dual_heads = DualingHeads(params['dual_heads'])
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001,epsilon=0.0001, clipnorm=40.)
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001, epsilon=0.0001, clipnorm=40.)
 
     def call(self, x, prev_a, prev_r_e, prev_r_i, one_hot_j, state_h, state_c):
         x = self.conv_torso(x)
@@ -78,13 +84,13 @@ class R2D2(tf.keras.Model):
         x, state_h, state_c = self.lstm(x, initial_state=[state_h, state_c])
         return self.dual_heads(x), state_h, state_c
 
+
 class Agent57(tf.keras.Model):
 
     def __init__(self, params):
         super(Agent57, self).__init__()
         self.extrinsic_model = R2D2(params)
         self.intrinsic_model = R2D2(params)
-
 
     def separate_models(self, x, prev_a, prev_r_e, prev_r_i, one_hot_j, eh, ec, ih, ic):
         q_e, eh, ec = self.extrinsic_model(x, prev_a, prev_r_e, prev_r_i, one_hot_j, eh, ec)
@@ -95,13 +101,14 @@ class Agent57(tf.keras.Model):
         q_e, q_i, eh, ec, ih, ic = self.separate_models(x, prev_a, prev_r_e, prev_r_i, one_hot_j, eh, ec, ih, ic)
         q_e = h_inverse(q_e)
         q_i = h_inverse(q_i)
-        q_i = beta*q_i
-        return h(q_e+q_i), eh, ec, ih, ic
+        q_i = beta * q_i
+        return h(q_e + q_i), eh, ec, ih, ic
 
     def call(self, x, prev_a, prev_r_e, prev_r_i, one_hot_j, beta, hidden_state):
         eh, ec, ih, ic = tf.split(hidden_state, num_or_size_splits=4, axis=-1)
         q, eh, ec, ih, ic = self.separate_hidden(x, prev_a, prev_r_e, prev_r_i, one_hot_j, beta, eh, ec, ih, ic)
         return q, tf.concat([eh, ec, ih, ic], axis=-1)
+
 
 def get_agent57_model(params, weight_path=None, with_sequence=False):
     dtype = params['Misc']['dtype']
@@ -109,16 +116,16 @@ def get_agent57_model(params, weight_path=None, with_sequence=False):
         tf.keras.mixed_precision.set_global_policy('mixed_float16')
     model = Agent57(params['Agent57'])
     if weight_path:
-        x = tf.ones((1,210,160,1), dtype=dtype)
+        x = tf.ones((1, 210, 160, 1), dtype=dtype)
         a = tf.zeros((1, params['Agent57']['dual_heads']['num_actions']), dtype=dtype)
-        r = tf.zeros((1,1), dtype=dtype)
+        r = tf.zeros((1, 1), dtype=dtype)
         hot = tf.zeros((1, params['Misc']['N']), dtype=dtype)
         if with_sequence:
             x = tf.expand_dims(x, 1)
             a = tf.expand_dims(a, 1)
             r = tf.expand_dims(r, 1)
             hot = tf.expand_dims(hot, 1)
-        h = tf.zeros((1, params['Agent57']['lstm']['units']*4), dtype=dtype)
+        h = tf.zeros((1, params['Agent57']['lstm']['units'] * 4), dtype=dtype)
         model(x, a, r, r, hot, 0., h)
         model.summary()
         import os
@@ -128,9 +135,11 @@ def get_agent57_model(params, weight_path=None, with_sequence=False):
             model.save_weights(weight_path)
     return model
 
+
 if __name__ == "__main__":
     import yaml
     import tensorflow as tf
+
     with open('../params.yml', 'r') as file:
         params = yaml.full_load(file)
     get_agent57_model(params, "../weights/checkpoints/agent57_0_dqn.h5")

@@ -87,9 +87,9 @@ EpisodicMemory:
 Misc:
   dtype: float32
   render_actor: True
-  environment: 'DemonAttack-v4' #'Breakout-v0' #'MontezumaRevenge-v4' #'Solaris-v4'
+  environment: 'MontezumaRevenge-v4' #'DemonAttack-v4' #'Breakout-v0' #'Solaris-v4'
   obs_type: 'grayscale'
-  obs_shape: [1,210,160,1]
+  obs_shape: [ 1,210,160,1 ]
   frameskip: False
   reward_scale: 1
   zero_discount_on_life_loss: True
@@ -97,6 +97,7 @@ Misc:
   L: 256
   greed_e: .4
   greed_a: 8.
+  evaluate_modified_reward: True
   bandit_window_size: 90
   bandit_beta: 1.
   bandit_e: .5
@@ -105,8 +106,8 @@ Misc:
   trace_length: 160
   replay_period: 80
   min_required_sequences: 6250
-  database_size_limit:  930 # in GBs
-  target_free_space:  30 # in GBs
+  database_size_limit: 930 # in GBs
+  target_free_space: 30 # in GBs
   max_episode_length: 7500 # in steps
   bandit_ip: '127.0.0.1' #
   bandit_port: 5057
@@ -115,7 +116,7 @@ Misc:
   weights_port: 5056
   weights_workers: 1
   replay_ip: '127.0.0.1'
-  replay_port_range: [5055,5054]
+  replay_port_range: [ 5055,5054 ]
   replay_workers: 1
   training_batch_size: 64
   consecutive_training_batches: 2

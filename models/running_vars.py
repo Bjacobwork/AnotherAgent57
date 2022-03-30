@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+
 class RunningVars:
 
     def __init__(self):
@@ -18,7 +19,8 @@ class RunningVars:
 
     def reset(self, resets):
         resets = tf.convert_to_tensor(resets)
-        resets = tf.where(resets, tf.zeros_like(resets, dtype=self.count.dtype), tf.ones_like(resets, dtype=self.count.dtype))
+        resets = tf.where(resets, tf.zeros_like(resets, dtype=self.count.dtype),
+                          tf.ones_like(resets, dtype=self.count.dtype))
         resets = tf.expand_dims(resets, axis=-1)
         self.count = tf.multiply(resets, self.count)
         self.sum = tf.multiply(resets, self.sum)
@@ -29,16 +31,17 @@ class RunningVars:
         self.sum_of_squares -= tf.square(x)
 
     def mean(self):
-        return self.sum/self.count
+        return self.sum / self.count
 
     def variance(self):
-        return (self.sum_of_squares/self.count)-tf.square(self.mean())
+        return (self.sum_of_squares / self.count) - tf.square(self.mean())
 
     def stdev(self):
         return tf.sqrt(self.variance())
 
+
 if __name__ == "__main__":
-    var_shape = (5,3)
+    var_shape = (5, 3)
     rv = RunningVars(var_shape)
     for i in range(10000):
         var = tf.random.normal(var_shape, dtype=tf.float32)

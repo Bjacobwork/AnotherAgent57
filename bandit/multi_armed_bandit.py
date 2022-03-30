@@ -3,6 +3,7 @@ from multiprocessing import shared_memory
 import random
 import math
 
+
 class MultiArmedBandit:
 
     def __init__(self, params, lock, address=None, save_root=""):
@@ -15,17 +16,17 @@ class MultiArmedBandit:
         self.root = save_root
         dtype = params['Misc']['dtype']
         element_size = 4
-        dtype_size = {"float16":2,"float32":4,"float64":8}[dtype]
-        mem_size = dtype_size*(self.window_size+2*self.N+1)+element_size*(2+self.window_size)
+        dtype_size = {"float16": 2, "float32": 4, "float64": 8}[dtype]
+        mem_size = dtype_size * (self.window_size + 2 * self.N + 1) + element_size * (2 + self.window_size)
         if not address:
             self.mem = shared_memory.SharedMemory(create=True, size=mem_size)
         else:
             self.mem = shared_memory.SharedMemory(name=address)
         start = 0
-        end = self.N*dtype_size
+        end = self.N * dtype_size
         self.rewards = np.ndarray(self.N, dtype=dtype, buffer=self.mem.buf[start:end])
         start = end
-        end += self.N*dtype_size
+        end += self.N * dtype_size
         self.counts = np.ndarray(self.N, dtype=dtype, buffer=self.mem.buf[start:end])
         start = end
         end += dtype_size
@@ -38,15 +39,15 @@ class MultiArmedBandit:
         self.window_indices = np.ndarray(1, dtype=np.int32, buffer=self.mem.buf[start:end])
         self.window_indices[0] = -1
         start = end
-        end += self.window_size*element_size
+        end += self.window_size * element_size
         self.window_arms = np.ndarray(self.window_size, dtype=np.int32, buffer=self.mem.buf[start:end])
         self.window_arms[:] = -1
         start = end
-        end += self.window_size*dtype_size
+        end += self.window_size * dtype_size
         self.window_rewards = np.ndarray(self.window_size, dtype=dtype, buffer=self.mem.buf[start:end])
 
     def append_window(self, arm, reward):
-        self.window_indices[0] = (self.window_indices[0]+1)%self.window_size
+        self.window_indices[0] = (self.window_indices[0] + 1) % self.window_size
         wi = self.window_indices[0]
         self.counts[arm] += 1
         self.rewards[arm] += reward
@@ -62,7 +63,7 @@ class MultiArmedBandit:
             self.append_window(arm, reward)
             self.high_score[0] = max(self.high_score[0], score)
             self.k[0] += 1
-            saving = self.k[0]%self.save_every == 0
+            saving = self.k[0] % self.save_every == 0
         if saving:
             self.save(self.root)
 
@@ -73,9 +74,9 @@ class MultiArmedBandit:
 
     def ucb(self):
         with self.lock:
-            num = math.log(min(self.k[0]-1, self.window_size))
+            num = math.log(min(self.k[0] - 1, self.window_size))
             den = self.counts + 1e-10
-            ucb = self.beta*np.sqrt(np.divide(num, den))
+            ucb = self.beta * np.sqrt(np.divide(num, den))
             ranks = ucb + np.divide(self.rewards, den)
         return int(np.argmax(ranks))
 
@@ -83,18 +84,18 @@ class MultiArmedBandit:
         if self.k[0] < self.N:
             return int(self.k[0])
         if random.random() < self.epsilon:
-            return random.randint(0,self.N-1)
+            return random.randint(0, self.N - 1)
         return self.ucb()
 
     def grab_mab_data(self):
         with self.lock:
             data = {
-                "mab":[],
+                "mab": [],
                 "k": int(self.k[0]),
                 "high_score": float(self.high_score[0])
             }
             if self.window_indices[0] >= 0:
-                for i in range(self.window_indices[0]+1):
+                for i in range(self.window_indices[0] + 1):
                     data['mab'].append((int(self.window_arms[i]), float(self.window_rewards[i])))
         return data
 
@@ -104,7 +105,7 @@ class MultiArmedBandit:
             import json
             import os
             os.makedirs(root, exist_ok=True)
-            with open(root+"/mab.json", 'w') as file:
+            with open(root + "/mab.json", 'w') as file:
                 data = self.grab_mab_data()
                 json.dump(data, file)
             return True
@@ -116,8 +117,8 @@ class MultiArmedBandit:
     def load(self, root):
         import json
         import os
-        if os.path.isfile(root+"/mab.json"):
-            with open(root+"/mab.json", 'r') as file:
+        if os.path.isfile(root + "/mab.json"):
+            with open(root + "/mab.json", 'r') as file:
                 data = json.load(file)
                 with self.lock:
                     self.k[0] = data['k']

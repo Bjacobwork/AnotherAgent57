@@ -1,5 +1,6 @@
 import socket
 
+
 class BanditClient:
 
     def __init__(self, params):
@@ -35,12 +36,13 @@ class BanditClient:
 
 if __name__ == "__main__":
     import yaml
+
     with open('../actors/params.yml', 'r') as file:
         params = yaml.full_load(file)
     client = BanditClient(params)
     N = 32
-    for i in range(N*2):
+    for i in range(N * 2):
         j = client.get_j()
         print(f"recieved arm {j}")
-        client.update_reward(j, i/N)
-        print(f"updating {j} with {i/N}")
+        client.update_reward(j, i / N)
+        print(f"updating {j} with {i / N}")

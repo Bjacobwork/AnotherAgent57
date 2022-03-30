@@ -9,6 +9,8 @@ DEFAULT_CONFIG = {
     'user': 'root',
     'password': ''
 }
+
+
 class ConnectionManager:
 
     def setup_database(self):
@@ -109,7 +111,7 @@ class ConnectionManager:
                 count = 0
                 for r in self.cur:
                     eid = r[0]
-                    count+= 1
+                    count += 1
                     if eid not in saving:
                         if len(saving) < num_episodes_allowed:
                             saving.append(eid)
@@ -136,24 +138,23 @@ class ConnectionManager:
                     clearing = False
                 if len(these) > 0:
                     where = f"WHERE (episode_id) IN ({','.join(str(eid) for eid in these)})"
-                    self.cur.execute(remove_episode+where)
-                    self.cur.execute(remove_trace+where)
-                    self.cur.execute(remove_transition+where)
+                    self.cur.execute(remove_episode + where)
+                    self.cur.execute(remove_trace + where)
+                    self.cur.execute(remove_transition + where)
         except Exception as e:
             print(e)
             print(traceback.print_exc())
 
-
-    def allocate_space(self,bytes_per_transition, byte_limit, target_free_space, in_progress, batches):
+    def allocate_space(self, bytes_per_transition, byte_limit, target_free_space, in_progress, batches):
         try:
             query = "SELECT SUM(data_length + index_length) FROM information_schema.tables WHERE table_schema = ?"
             self.cur.execute(query, ('agent57',))
             for r in self.cur:
                 bytes_occupied = r[0]
                 break
-            bytes_to_allocate = target_free_space - (byte_limit-bytes_occupied)
+            bytes_to_allocate = target_free_space - (byte_limit - bytes_occupied)
             if bytes_to_allocate <= 0:
-                return byte_limit-bytes_occupied
+                return byte_limit - bytes_occupied
             print(f"\nALLOCATING {bytes_to_allocate} BYTES", end="")
             time.sleep(10)
             query = "SELECT episode.episode_id,(SELECT COUNT(step) FROM transition WHERE transition.episode_id = episode.episode_id) as counts FROM episode ORDER BY episode.priority ASC, counts DESC"
@@ -173,7 +174,7 @@ class ConnectionManager:
                             working = True
                             break
                     if not working:
-                        bytes_to_allocate -= r[1]*bytes_per_transition
+                        bytes_to_allocate -= r[1] * bytes_per_transition
                         cur_1.execute(remove_episode, (r[0],))
                         cur_1.execute(remove_trace, (r[0],))
                         cur_1.execute(remove_transition, (r[0],))
@@ -181,7 +182,7 @@ class ConnectionManager:
                     break
             cur_1.close()
             conn_1.close()
-            return target_free_space-bytes_to_allocate
+            return target_free_space - bytes_to_allocate
         except Exception as e:
             print("allocate_space")
             print(e)
@@ -192,7 +193,7 @@ class ConnectionManager:
         import itertools
         try:
             query = "REPLACE INTO transition (episode_id,step,prev_extrinsic_reward,prev_intrinsic_reward,action,observation,hidden_state,mu,q_value,discounted_q)" \
-                  " VALUES "+",".join("(?,?,?,?,?,?,?,?,?,?)" for _ in range(len(transitions)))
+                    " VALUES " + ",".join("(?,?,?,?,?,?,?,?,?,?)" for _ in range(len(transitions)))
             transitions = list(itertools.chain(*transitions))
             self.cur.execute(query, transitions)
             return True
@@ -210,7 +211,7 @@ class ConnectionManager:
             for r in self.cur:
                 count = r[0]
                 break
-            if count < trace_length+1:
+            if count < trace_length + 1:
                 remove_episode = "DELETE FROM episode WHERE episode_id = ?"
                 remove_trace = "DELETE FROM trace WHERE episode_id = ?"
                 remove_transition = "DELETE FROM transition WHERE episode_id = ?"
@@ -226,11 +227,11 @@ class ConnectionManager:
                 j = r[0]
                 break
             beta, gamma = policies.get_policy(j, N)
-            training_block = (count-replay_period-1)
-            training_len = (trace_length-replay_period)//training_splits
-            trace_count = training_block/training_len
+            training_block = (count - replay_period - 1)
+            training_len = (trace_length - replay_period) // training_splits
+            trace_count = training_block / training_len
             regular_position = math.floor(trace_count)
-            offset_position = math.ceil(trace_count-regular_position)
+            offset_position = math.ceil(trace_count - regular_position)
 
             query = "SELECT prev_extrinsic_reward, prev_intrinsic_reward, q_value, discounted_q FROM transition WHERE episode_id = ? ORDER BY step ASC"
             self.cur.execute(query, (episode_id,))
@@ -240,7 +241,7 @@ class ConnectionManager:
             while True:
                 try:
                     re, ri, nv, gpq = next(transition)
-                    temporal_differences.append(abs(re+(beta*ri)+gpq-v))
+                    temporal_differences.append(abs(re + (beta * ri) + gpq - v))
                     v = nv
                 except StopIteration:
                     break
@@ -248,20 +249,20 @@ class ConnectionManager:
             priorities = []
             init_steps = []
             for i in range(regular_position):
-                init_step = i*training_len
+                init_step = i * training_len
                 init_steps.append(init_step)
-                mean = sum(temporal_differences[init_step+replay_period:init_step+trace_length])/trace_length
-                highest = max(temporal_differences[init_step+replay_period:init_step+trace_length])
-                priorities.append((eta*highest)+((1-eta)*mean))
+                mean = sum(temporal_differences[init_step + replay_period:init_step + trace_length]) / trace_length
+                highest = max(temporal_differences[init_step + replay_period:init_step + trace_length])
+                priorities.append((eta * highest) + ((1 - eta) * mean))
             if offset_position:
-                init_step = count-trace_length-1
+                init_step = count - trace_length - 1
                 init_steps.append(init_step)
-                mean = sum(temporal_differences[init_step+replay_period:init_step+trace_length])/trace_length
-                highest = max(temporal_differences[init_step+replay_period:init_step+trace_length])
-                priorities.append((eta*highest)+((1-eta)*mean))
-            mean = sum(priorities)/len(priorities)
+                mean = sum(temporal_differences[init_step + replay_period:init_step + trace_length]) / trace_length
+                highest = max(temporal_differences[init_step + replay_period:init_step + trace_length])
+                priorities.append((eta * highest) + ((1 - eta) * mean))
+            mean = sum(priorities) / len(priorities)
             highest = max(priorities)
-            episode_priority = (eta*highest)+((1-eta)*mean)
+            episode_priority = (eta * highest) + ((1 - eta) * mean)
             query = "REPLACE INTO trace (episode_id, initial_step, priority) VALUES "
             query += ",".join("(?, ?, ?)" for _ in range(len(init_steps)))
             traces = []
@@ -285,7 +286,7 @@ class ConnectionManager:
             transition_query = "SELECT prev_extrinsic_reward, prev_intrinsic_reward, action, observation, hidden_state, mu, discounted_q FROM transition WHERE episode_id = ? AND step >= ? AND step <= ? ORDER BY step ASC"
             batch_size = sum([1 if tid >= 0 else 0 for tid in learner_data.trace_ids])
             first = 0
-            last = batch_size-1
+            last = batch_size - 1
             index = 0
             for i, tid in enumerate(learner_data.trace_ids):
                 if tid < 0:
@@ -305,14 +306,16 @@ class ConnectionManager:
                 for r in self.cur:
                     learner_data.j[index] = int(r[0])
                     break
-                self.cur.execute(transition_query, (episode_id, initial_step, initial_step+trace_length))
+                self.cur.execute(transition_query, (episode_id, initial_step, initial_step + trace_length))
                 for j, r in enumerate(self.cur):
                     if j == 0:
-                        learner_data.hidden[index] = np.frombuffer(r[4], dtype=np.float32).reshape(learner_data.hidden.shape[-1])
+                        learner_data.hidden[index] = np.frombuffer(r[4], dtype=np.float32).reshape(
+                            learner_data.hidden.shape[-1])
                     learner_data.prev_extrinsic_rewards[j][index] = r[0]
                     learner_data.prev_intrinsic_rewards[j][index] = r[1]
                     learner_data.actions[j][index] = r[2]
-                    learner_data.observations[j][index] = np.frombuffer(r[3], dtype=np.uint8).reshape(learner_data.observations.shape[-3:])/255
+                    learner_data.observations[j][index] = np.frombuffer(r[3], dtype=np.uint8).reshape(
+                        learner_data.observations.shape[-3:]) / 255
                     # i and j are swapped to avoid transpose
                     learner_data.mu[index][j] = r[5]
                     learner_data.lost_life[index][j] = True if r[6] == 0. else False
@@ -324,7 +327,7 @@ class ConnectionManager:
 
     def update_priorities(self, episode_ids, trace_ids, priorities, eta=.9):
         update_query = "UPDATE trace SET priority = ? WHERE trace_id = ?"
-        for p,tid in zip(priorities,trace_ids):
+        for p, tid in zip(priorities, trace_ids):
             try:
                 self.cur.execute(update_query, (float(p), int(tid)))
             except Exception as e:
@@ -338,31 +341,35 @@ class ConnectionManager:
                 try:
                     self.cur.execute(select_query, (int(eid),))
                     priorities = [float(r[0]) for r in self.cur]
-                    p = eta*max(priorities)+(1-eta)*(sum(priorities)/len(priorities))
+                    p = eta * max(priorities) + (1 - eta) * (sum(priorities) / len(priorities))
                     self.cur.execute(update_query, (p, int(eid)))
                     updated.append(eid)
                 except Exception as e:
                     print(e)
                     print(traceback.print_exc())
 
+
 if __name__ == "__main__":
     import numpy as np
     import random
-    obs = np.zeros((1,210, 160,1), dtype=np.uint8)
-    h = np.zeros((1,512*4), dtype=np.float32)
+
+    obs = np.zeros((1, 210, 160, 1), dtype=np.uint8)
+    h = np.zeros((1, 512 * 4), dtype=np.float32)
     episode_id = 0
     j = 20
     cm = ConnectionManager(DEFAULT_CONFIG)
     cm.init_episode(DEFAULT_CONFIG, episode_id, j)
-    in_progress = np.array([-1,-1,-1,-1])
-    batches = np.array([[-1,-1],[-1,-1]])
+    in_progress = np.array([-1, -1, -1, -1])
+    batches = np.array([[-1, -1], [-1, -1]])
     offset = 0
     for i in range(250):
         transitions = []
         for i in range(100):
-            transitions.append([episode_id,i+offset,random.randrange(100),random.randrange(100),0,obs.tobytes(), h.tobytes(), random.random(),random.randrange(100),random.randrange(100)])
+            transitions.append(
+                [episode_id, i + offset, random.randrange(100), random.randrange(100), 0, obs.tobytes(), h.tobytes(),
+                 random.random(), random.randrange(100), random.randrange(100)])
         offset += 100
-        can_upload = cm.allocate_space(DEFAULT_CONFIG,960, 100, in_progress, batches)
+        can_upload = cm.allocate_space(DEFAULT_CONFIG, 960, 100, in_progress, batches)
         if can_upload:
             cm.upload_transitions(DEFAULT_CONFIG, transitions)
-    cm.calculate_priorities(DEFAULT_CONFIG, 80,40,32,episode_id)
+    cm.calculate_priorities(DEFAULT_CONFIG, 80, 40, 32, episode_id)

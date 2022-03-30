@@ -2,13 +2,14 @@ import time
 from environment_server.actor_data import ActorData
 import traceback
 
+
 def replay_buffer_process(params, batch_sizes, batch_addresses, transition_queue, replay_lock):
     try:
         from replay_buffer import replay_client
         import random
         batch_data = [ActorData(params, b, a) for b, a in zip(batch_sizes, batch_addresses)]
         consecutive_batches = params['Misc']['consecutive_batches']
-        num_actions = params['Agent57']['dual_heads']['num_actions']-1
+        num_actions = params['Agent57']['dual_heads']['num_actions'] - 1
         for b, data in zip(batch_sizes, batch_data):
             with data.lock:
                 for i in range(b):
@@ -29,10 +30,10 @@ def replay_buffer_process(params, batch_sizes, batch_addresses, transition_queue
                 while data.status[0] != 0:
                     pass
                 with data.lock:
-                    #print("Buffer")
-                    total_time = time.time()-data.timer[0]
+                    # print("Buffer")
+                    total_time = time.time() - data.timer[0]
                     data.timer[0] = time.time()
-                    print(f"\rActions per second {consecutive_batches/(total_time*len(batch_sizes))} ",end="")
+                    print(f"\rActions per second {consecutive_batches / (total_time * len(batch_sizes))} ", end="")
                     transition_queue.put([
                         data.episode_ids.copy(),
                         data.steps.copy(),
@@ -61,7 +62,8 @@ def replay_buffer_process(params, batch_sizes, batch_addresses, transition_queue
     except Exception as e:
         print(e)
         print(traceback.print_exc(4))
-        #replay_buffer_process(params, batch_sizes, batch_addresses, transition_queue, replay_lock)
+        # replay_buffer_process(params, batch_sizes, batch_addresses, transition_queue, replay_lock)
+
 
 def environment_process(params, batch_sizes, batch_addresses):
     try:
@@ -70,14 +72,15 @@ def environment_process(params, batch_sizes, batch_addresses):
         frameskip = params['Misc']['frameskip'] if type(params['Misc']['frameskip']) == int else False
         multi_envs = [[Environment(params['Misc']['environment'], params['Misc']['obs_type'], frameskip,
                                    params['Misc']['max_episode_length'], i, data.actions, data.observations,
-                                   data.extrinsic_rewards, data.steps, data.resets, data.loss_of_life, params['Misc']['reward_scale']) for i in range(b)] for b, data in
+                                   data.extrinsic_rewards, data.steps, data.resets, data.loss_of_life,
+                                   params['Misc']['reward_scale']) for i in range(b)] for b, data in
                       zip(batch_sizes, batch_data)]
         while True:
             for b, multi_env, data in zip(batch_sizes, multi_envs, batch_data):
                 while data.status[0] != 1:
                     pass
                 with data.lock:
-                    #print("Env")
+                    # print("Env")
                     for env in multi_env:
                         env()
                     data.prev_actions[:] = data.actions
@@ -85,7 +88,8 @@ def environment_process(params, batch_sizes, batch_addresses):
     except Exception as e:
         print(e)
         print(traceback.print_exc(4))
-        #environment_process(params, batch_sizes, batch_addresses)
+        # environment_process(params, batch_sizes, batch_addresses)
+
 
 def split_environment_process(params, batch_sizes, batch_addresses, num_splits):
     from multiprocessing import Process, Queue
@@ -138,7 +142,7 @@ def intrinsic_motivation_process(params, batch_sizes, path_index, path_template,
                 path = path_template.format("im", path_index.value)
             else:
                 path = None
-        print(f"Loading model from {path}\n",end="")
+        print(f"Loading model from {path}\n", end="")
         model = get_intrinsic_motivation_model(params, batch_sizes, path)
 
         update_every = params['Misc']['actor_weight_update']
@@ -148,7 +152,7 @@ def intrinsic_motivation_process(params, batch_sizes, path_index, path_template,
                 while data.status[0] != 2:
                     pass
                 with data.lock:
-                    observations = tf.cast(data.observations, dtype)/255
+                    observations = tf.cast(data.observations, dtype) / 255
                     intrinsic_rewards = model(observations, b)
                     # transition = [resets, x, prev_reward_e, j, beta, prev_reward_i]
                     data.intrinsic_rewards[:] = intrinsic_rewards.numpy()
@@ -162,7 +166,7 @@ def intrinsic_motivation_process(params, batch_sizes, path_index, path_template,
                 with path_index.get_lock():
                     if path_index.value >= 0:
                         path = path_template.format("im", path_index.value)
-                        print(f"Loading model from {path}\n",end="")
+                        print(f"Loading model from {path}\n", end="")
                         model.load_weights(path)
 
 
@@ -181,7 +185,7 @@ def dqn_process(params, batch_sizes, path_index, path_template, batch_addresses,
                 path = path_template.format("dqn", path_index.value)
             else:
                 path = None
-        print(f"Loading model from {path}\n",end="")
+        print(f"Loading model from {path}\n", end="")
         model = get_agent57_model(params, path)
         num_actions = params['Agent57']['dual_heads']['num_actions']
         hidden_units = 4 * params['Agent57']['lstm']['units']
@@ -216,7 +220,7 @@ def dqn_process(params, batch_sizes, path_index, path_template, batch_addresses,
                     beta = tf.expand_dims(beta, axis=-1)
                     prev_reward_e = dqn.h(tf.convert_to_tensor(data.extrinsic_rewards, dtype))
                     prev_r_i = dqn.h(tf.convert_to_tensor(data.intrinsic_rewards, dtype=dtype))
-                    observations = tf.cast(data.observations, dtype)/255
+                    observations = tf.cast(data.observations, dtype) / 255
 
                     q_values, hidden = model(observations, prev_a, prev_reward_e, prev_r_i,
                                              one_hot_js, beta, hidden)
@@ -233,7 +237,8 @@ def dqn_process(params, batch_sizes, path_index, path_template, batch_addresses,
                                                              q_values),
                                                  axis=-1)
                     if zero_discount_on_life_loss:
-                        discounted_q = tf.multiply(discounted_q, tf.where(tf.convert_to_tensor(data.loss_of_life), tf.zeros_like(gamma), gamma))
+                        discounted_q = tf.multiply(discounted_q, tf.where(tf.convert_to_tensor(data.loss_of_life),
+                                                                          tf.zeros_like(gamma), gamma))
                     else:
                         discounted_q = tf.multiply(discounted_q, gamma)
 
@@ -254,8 +259,9 @@ def dqn_process(params, batch_sizes, path_index, path_template, batch_addresses,
                 with path_index.get_lock():
                     if path_index.value >= 0:
                         path = path_template.format("dqn", path_index.value)
-                        print(f"Loading model from {path}\n",end="")
+                        print(f"Loading model from {path}\n", end="")
                         model.load_weights(path)
+
 
 def Agent57_process(params, batch_sizes, path_index, path_template, batch_addresses, device, splits, split_position):
     try:
@@ -275,10 +281,10 @@ def Agent57_process(params, batch_sizes, path_index, path_template, batch_addres
                 else:
                     path = None
             loading = path.format("im")
-            print(f"Loading model from {loading}\n",end="")
+            print(f"Loading model from {loading}\n", end="")
             im = get_intrinsic_motivation_model(params, batch_sizes, loading)
             loading = path.format("dqn")
-            print(f"Loading model from {loading}\n",end="")
+            print(f"Loading model from {loading}\n", end="")
             agent57 = get_agent57_model(params, loading)
 
             num_actions = params['Agent57']['dual_heads']['num_actions']
@@ -298,10 +304,10 @@ def Agent57_process(params, batch_sizes, path_index, path_template, batch_addres
             mu_random = tf.split(mu_random, num_or_size_splits=batch_sizes)
             mu_q = tf.split(mu_q, num_or_size_splits=batch_sizes)
 
-            update_every = params['Misc']['actor_weight_update']*(len(batch_sizes)/consecutive_batches)
+            update_every = params['Misc']['actor_weight_update'] * (len(batch_sizes) / consecutive_batches)
             next_update = update_every
-            for i in range(len(batch_sizes)-1, -1, -1):
-                if i%splits != split_position:
+            for i in range(len(batch_sizes) - 1, -1, -1):
+                if i % splits != split_position:
                     batch_sizes.pop(i)
                     batch_data.pop(i)
                     greeds.pop(i)
@@ -310,13 +316,14 @@ def Agent57_process(params, batch_sizes, path_index, path_template, batch_addres
                     hiddens.pop(i)
             while True:
                 next_hiddens = []
-                for b, batch_size, data, greed, m_r, m_q, hidden in zip(range(len(batch_sizes)), batch_sizes, batch_data, greeds, mu_random, mu_q, hiddens):
+                for b, batch_size, data, greed, m_r, m_q, hidden in zip(range(len(batch_sizes)), batch_sizes,
+                                                                        batch_data, greeds, mu_random, mu_q, hiddens):
                     while data.status[0] != 2:
                         pass
                     with data.lock:
-                        #print("Agent")
+                        # print("Agent")
                         data.hidden[:] = hidden.numpy()
-                        observations = tf.cast(data.observations, dtype)/255
+                        observations = tf.cast(data.observations, dtype) / 255
                         prev_r_i = im(observations, b)
                         data.intrinsic_rewards[:] = prev_r_i.numpy()
                         prev_r_i = dqn.h(prev_r_i)
@@ -329,7 +336,7 @@ def Agent57_process(params, batch_sizes, path_index, path_template, batch_addres
                         prev_reward_e = dqn.h(tf.convert_to_tensor(data.extrinsic_rewards, dtype))
 
                         q_values, hidden = agent57(observations, prev_a, prev_reward_e, prev_r_i,
-                                                       one_hot_js, beta, hidden)
+                                                   one_hot_js, beta, hidden)
 
                         action = tf.argmax(q_values, axis=-1, output_type=tf.int32)
                         random_action = tf.random.uniform(action.shape, 0, num_actions - 1, tf.int32)
@@ -338,12 +345,13 @@ def Agent57_process(params, batch_sizes, path_index, path_template, batch_addres
                         action = tf.where(random_decision, random_action, action)
                         mu = tf.where(random_decision, m_r, m_q)
                         selected_q_values = tf.reduce_sum(
-                        tf.one_hot(action, depth=num_actions, dtype=dtype) * q_values, axis=-1)
+                            tf.one_hot(action, depth=num_actions, dtype=dtype) * q_values, axis=-1)
                         discounted_q = tf.reduce_sum(tf.multiply(tf.nn.softmax(q_values, axis=-1),
-                                                                     q_values),
+                                                                 q_values),
                                                      axis=-1)
                         if zero_discount_on_life_loss:
-                            discounted_q = tf.multiply(discounted_q, tf.where(tf.convert_to_tensor(data.loss_of_life), tf.zeros_like(gamma), gamma))
+                            discounted_q = tf.multiply(discounted_q, tf.where(tf.convert_to_tensor(data.loss_of_life),
+                                                                              tf.zeros_like(gamma), gamma))
                         else:
                             discounted_q = tf.multiply(discounted_q, gamma)
                         data.actions[:] = action.numpy()
@@ -367,15 +375,16 @@ def Agent57_process(params, batch_sizes, path_index, path_template, batch_addres
                         else:
                             path = None
                         loading = path.format("im")
-                        print(f"\nLoading model from {loading}\n",end="")
+                        print(f"\nLoading model from {loading}\n", end="")
                         im.load_weights(loading)
                         loading = path.format("dqn")
-                        print(f"Loading model from {loading}\n",end="")
+                        print(f"Loading model from {loading}\n", end="")
                         agent57.load_weights(loading)
     except Exception as e:
         print(e)
         print(traceback.print_exc(4))
-        #Agent57_process(params, batch_sizes, path_index, path_template, batch_addresses, device, splits, split_position)
+        # Agent57_process(params, batch_sizes, path_index, path_template, batch_addresses, device, splits, split_position)
+
 
 def weight_downloading_process(params, path_index, path_template, path_limit, download_period):
     from learning_server.weights_client import download_files
@@ -435,35 +444,39 @@ if __name__ == "__main__":
     last_batch_size = num_envs - (batch_size * (batches - 1))
     batch_sizes = [batch_size for _ in range(batches - 1)]
     batch_sizes.append(last_batch_size)
-    print(f"Working with batch sizes {batch_sizes}\n",end="")
-    print(f"on devices {devices}\n",end="")
+    print(f"Working with batch sizes {batch_sizes}\n", end="")
+    print(f"on devices {devices}\n", end="")
 
     batch_memory = [ActorData(params, b) for b in batch_sizes]
     batch_addresses = [bm.shared_mem.name for bm in batch_memory]
     transition_queue = Queue()
     replay_lock = Lock()
 
-    processes = [Process(target=local_replay_buffer.transition_upload_process, args=(params, transition_queue, replay_lock)),
-                 Process(target=weight_downloading_process,
-                         args=(params, path_index, path_template, path_limit, download_period)),
-                 Process(target=replay_buffer_process,
-                         args=(params, batch_sizes, batch_addresses, transition_queue, replay_lock)),
-                 Process(target=split_environment_process,
-                         args=(params, batch_sizes, batch_addresses, 2))]
-                 #Process(target=environment_process,
-                 #        args=(params, batch_sizes, batch_addresses))]
+    processes = [
+        Process(target=local_replay_buffer.transition_upload_process, args=(params, transition_queue, replay_lock)),
+        Process(target=weight_downloading_process,
+                args=(params, path_index, path_template, path_limit, download_period)),
+        Process(target=replay_buffer_process,
+                args=(params, batch_sizes, batch_addresses, transition_queue, replay_lock)),
+        Process(target=split_environment_process,
+                args=(params, batch_sizes, batch_addresses, 2))]
+    # Process(target=environment_process,
+    #        args=(params, batch_sizes, batch_addresses))]
 
     if params['Misc']['split_stream']:
         splits = len(devices)
         for i, device in enumerate(devices):
             processes.append(Process(target=Agent57_process,
-                                       args=(params, batch_sizes, path_index, path_template, batch_addresses,device, splits, i)))
+                                     args=(
+                                     params, batch_sizes, path_index, path_template, batch_addresses, device, splits,
+                                     i)))
     else:
         processes.append(Process(target=intrinsic_motivation_process,
-                                                args=(params, batch_sizes, path_index, path_template, batch_addresses,
-                                                      devices[0])))
+                                 args=(params, batch_sizes, path_index, path_template, batch_addresses,
+                                       devices[0])))
         processes.append(Process(target=dqn_process,
-                                      args=(params, batch_sizes, path_index, path_template, batch_addresses, devices[1] if len(devices) > 1 else devices[0])))
+                                 args=(params, batch_sizes, path_index, path_template, batch_addresses,
+                                       devices[1] if len(devices) > 1 else devices[0])))
 
     for p in processes:
         p.start()
@@ -472,5 +485,5 @@ if __name__ == "__main__":
         import cv2
 
         while True:
-            cv2.imshow("Actor", np.concatenate([batch_memory[0].observations[0],batch_memory[-1].observations[-1]], 1))
+            cv2.imshow("Actor", np.concatenate([batch_memory[0].observations[0], batch_memory[-1].observations[-1]], 1))
             cv2.waitKey(1)
