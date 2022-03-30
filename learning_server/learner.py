@@ -71,6 +71,7 @@ def process_batch(data, dtype, num_actions, N, trace_length, replay_period, retr
     q_probs = tf.nn.softmax(qt, axis=-1)
     q_values = dqn.h_inverse(qt)
     discounted_q = gamma*tf.reduce_sum(q_probs*q_values, axis=-1)
+    discounted_q = tf.where(tf.convert_to_tensor(data.lost_life), tf.zeros_like(discounted_q), discounted_q)
     q_values = tf.reduce_sum(tf.transpose(one_hot_actions, [1,0,2])[:,1:]*q_values[:,:-1], axis=-1)
     temporal_difference = tf.squeeze(tf.transpose(data.prev_extrinsic_rewards[1:,:batch_size] + tf.expand_dims(beta, 0)*data.prev_intrinsic_rewards[1:,:batch_size], [1,0,2]))+discounted_q[:,1:]-q_values
 

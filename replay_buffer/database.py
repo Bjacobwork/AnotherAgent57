@@ -1,6 +1,5 @@
 import datetime
 import time
-
 import mariadb
 import traceback
 
@@ -283,7 +282,7 @@ class ConnectionManager:
         try:
             trace_query = "SELECT episode_id, initial_step FROM trace WHERE trace_id = ?"
             episode_query = "SELECT policy FROM episode WHERE episode_id = ?"
-            transition_query = "SELECT prev_extrinsic_reward, prev_intrinsic_reward, action, observation, hidden_state, mu FROM transition WHERE episode_id = ? AND step >= ? AND step <= ? ORDER BY step ASC"
+            transition_query = "SELECT prev_extrinsic_reward, prev_intrinsic_reward, action, observation, hidden_state, mu, discounted_q FROM transition WHERE episode_id = ? AND step >= ? AND step <= ? ORDER BY step ASC"
             batch_size = sum([1 if tid >= 0 else 0 for tid in learner_data.trace_ids])
             first = 0
             last = batch_size-1
@@ -316,6 +315,7 @@ class ConnectionManager:
                     learner_data.observations[j][index] = np.frombuffer(r[3], dtype=np.uint8).reshape(learner_data.observations.shape[-3:])/255
                     # i and j are swapped to avoid transpose
                     learner_data.mu[index][j] = r[5]
+                    learner_data.lost_life[index][j] = True if r[6] == 0. else False
                 learner_data.episode_ids[index] = episode_id
             learner_data.init_step_count[0] = first
         except Exception as e:

@@ -13,7 +13,7 @@ class LearnerData:
         hidden_size = params['Agent57']['lstm']['units']*4
         obs_shape = params['Misc']['obs_shape']
         obs_size = functools.reduce(lambda a, b: a*b, obs_shape)
-        memory_size = batch_size*(dtype_size*(4*trace_length+hidden_size+1+obs_size*trace_length)+2*element_size+1)+dtype_size+2
+        memory_size = batch_size*(dtype_size*(4*trace_length+hidden_size+1+obs_size*trace_length)+2*element_size+1+trace_length)+dtype_size+2
         if address:
             self.shared_mem = shared_memory.SharedMemory(name=address)
         else:
@@ -58,6 +58,9 @@ class LearnerData:
         start = end
         end += dtype_size*batch_size*trace_length
         self.mu = np.ndarray((batch_size, trace_length), dtype=dtype, buffer=self.shared_mem.buf[start:end])
+        start = end
+        end += batch_size*trace_length
+        self.lost_life = np.ndarray((batch_size, trace_length), dtype=bool, buffer=self.shared_mem.buf[start:end])
 
 if __name__ == "__main__":
     import yaml
