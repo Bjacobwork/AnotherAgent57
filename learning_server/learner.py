@@ -116,9 +116,9 @@ def process_batch(data, dtype, num_actions, N, trace_length, replay_period, retr
         q_probs = tf.reduce_sum(tf.transpose(one_hot_actions, [1,0,2])[:data.init_step_count[0],1:replay_period+1]*q_probs[:data.init_step_count[0],:replay_period], axis=-1)
         c = retrace_lambda*tf.minimum(1., q_probs/mus[:data.init_step_count[0],:replay_period])
         gamma = tf.pow(gamma[:data.init_step_count[0]], tf.expand_dims(tf.range(replay_period, dtype=dtype), 0))
-        retrace_targets = [tf.expand_dims(dqn.h(tf.reduce_sum(gamma*reduced_product(c[:,1:], dtype)*temporal_difference[:data.init_step_count[0],:replay_period],axis=-1)),0)]
-        for i, q in zip(range(1,replay_period), tf.transpose(q_values[:,1:], [1,0])):
-            retrace_targets.append(tf.expand_dims(dqn.h(tf.reduce_sum(gamma[:,:replay_period-i]*reduced_product(c[:,i+1:replay_period], dtype)*temporal_difference[:data.init_step_count[0],i:replay_period], axis=-1)),0))
+        retrace_targets = [tf.expand_dims(dqn.h(q_values[:data.init_step_count[0],0]+tf.reduce_sum(gamma*reduced_product(c[:,1:], dtype)*temporal_difference[:data.init_step_count[0],:replay_period],axis=-1)),0)]
+        for i, q in zip(range(1,replay_period), tf.transpose(q_values[:data.init_step_count[0],1:], [1,0])):
+            retrace_targets.append(tf.expand_dims(dqn.h(q+tf.reduce_sum(gamma[:,:replay_period-i]*reduced_product(c[:,i+1:replay_period], dtype)*temporal_difference[:data.init_step_count[0],i:replay_period], axis=-1)),0))
 
         retrace_targets = tf.concat(retrace_targets, axis=0)
         splits = training_splits*2
