@@ -226,6 +226,7 @@ def dqn_process(params, batch_sizes, path_index, path_template, batch_addresses,
                                              one_hot_js, beta, hidden)
 
                     action = tf.argmax(q_values, axis=-1, output_type=tf.int32)
+                    q_values = dqn.h_inverse(q_values)
                     random_action = tf.random.uniform(action.shape, 0, num_actions - 1, tf.int32)
                     random_decision = tf.random.uniform(action.shape, 0., 1., dtype) < greed
                     random_decision = random_decision | resets
@@ -275,11 +276,13 @@ def Agent57_process(params, batch_sizes, path_index, path_template, batch_addres
         from bandit import policies
         batch_data = [ActorData(params, b, a) for b, a in zip(batch_sizes, batch_addresses)]
         with tf.device(device):
-            with path_index.get_lock():
-                if path_index.value >= 0:
-                    path = path_template.format("{}", path_index.value)
-                else:
-                    path = None
+            while True:
+                with path_index.get_lock():
+                    if path_index.value >= 0:
+                        path = path_template.format("{}", path_index.value)
+                        break
+                    else:
+                        time.sleep(3)
             loading = path.format("im")
             print(f"Loading model from {loading}\n", end="")
             im = get_intrinsic_motivation_model(params, batch_sizes, loading)
@@ -339,6 +342,7 @@ def Agent57_process(params, batch_sizes, path_index, path_template, batch_addres
                                                    one_hot_js, beta, hidden)
 
                         action = tf.argmax(q_values, axis=-1, output_type=tf.int32)
+                        q_values = dqn.h_inverse(q_values)
                         random_action = tf.random.uniform(action.shape, 0, num_actions - 1, tf.int32)
                         random_decision = tf.random.uniform(action.shape, 0., 1., dtype) < greed
                         random_decision = random_decision | resets
