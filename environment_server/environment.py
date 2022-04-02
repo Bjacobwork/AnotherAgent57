@@ -62,8 +62,105 @@ def replay_buffer_process(params, batch_sizes, batch_addresses, transition_queue
     except Exception as e:
         print(e)
         print(traceback.print_exc(4))
-        # replay_buffer_process(params, batch_sizes, batch_addresses, transition_queue, replay_lock)
 
+def transition_upload_process(params, batch_sizes, batch_addresses, replay_lock, config=None):
+    try:
+        from replay_buffer import replay_client, database
+        import random
+        cm = database.ConnectionManager(config)
+        batch_data = [ActorData(params, b, a) for b, a in zip(batch_sizes, batch_addresses)]
+        consecutive_batches = params['Misc']['consecutive_batches']
+        num_actions = params['Agent57']['dual_heads']['num_actions'] - 1
+        for b, data in zip(batch_sizes, batch_data):
+            with data.lock:
+                for i in range(b):
+                    with replay_lock:
+                        episode_id, j = replay_client.request_episode_id(params)
+                    while episode_id < 0 or j < 0:
+                        time.sleep(1)
+                        with replay_lock:
+                            episode_id, j = replay_client.request_episode_id(params)
+                    data.episode_ids[i] = episode_id
+                    data.j[i] = j
+                    data.actions[i] = random.randint(0, num_actions)
+                data.resets[:] = True
+                data.timer[:] = time.time()
+                data.status[:] = 1
+        while True:
+            for b, data in zip(batch_sizes, batch_data):
+                while data.status[0] != 0:
+                    pass
+                with data.lock:
+                    # print("Buffer")
+                    total_time = time.time() - data.timer[0]
+                    data.timer[0] = time.time()
+                    print(f"\rActions per second {consecutive_batches / (total_time * len(batch_sizes))} ", end="")
+
+                    transitions = []
+                    resets = []
+                    for episode_id, step, extrinsic_reward, intrinsic_reward, action, observation, hidden, mu, value, discounted, reset in zip(
+                            data.episode_ids.copy(),
+                            data.steps.copy(),
+                            data.extrinsic_rewards.copy(),
+                            data.intrinsic_rewards.copy(),
+                            data.prev_actions.copy(),
+                            data.observations.copy(),
+                            data.hidden.copy(),
+                            data.mu.copy(),
+                            data.q_value.copy(),
+                            data.discounted_q.copy(),
+                            data.resets.copy()):
+                        transitions.append([int(episode_id),
+                                    int(step),
+                                    float(extrinsic_reward),
+                                    float(intrinsic_reward),
+                                    int(action),
+                                    observation.tobytes(),
+                                    hidden.tobytes(),
+                                    float(mu),
+                                    float(value),
+                                    float(discounted)])
+                        resets.append([episode_id, reset])
+
+                    while len(transitions) > 0:
+                        with replay_lock:
+                            allowed_to_upload = replay_client.request_transition_upload(params, len(transitions))
+                        if allowed_to_upload > 0:
+                            packets_1024 = allowed_to_upload // 1024
+                            final_packet = allowed_to_upload - (packets_1024 * 1024)
+                            packets = [1024 for _ in range(packets_1024)]
+                            if final_packet:
+                                packets.append(final_packet)
+                            for upload in packets:
+                                uploading = transitions[:upload]
+                                resetting = resets[:upload]
+                                transitions = transitions[upload:]
+                                resets = resets[upload:]
+                                success = cm.upload_transitions(uploading)
+                                if success:
+                                    for r in resetting:
+                                        if r[1]:
+                                            with replay_lock:
+                                                replay_client.signal_episode_end(params, int(r[0]))
+                                else:
+                                    transitions += uploading
+                                    resets += resetting
+
+                    for i, reset in enumerate(data.resets):
+                        if reset:
+                            with replay_lock:
+                                episode_id, j = replay_client.request_episode_id(params)
+                            while episode_id < 0 or j < 0:
+                                print(f"\rPausing while eps_id or j < 0: {episode_id} {j}", end="")
+                                time.sleep(120)
+                                with replay_lock:
+                                    episode_id, j = replay_client.request_episode_id(params)
+                            data.episode_ids[i] = episode_id
+                            data.j[i] = j
+                    data.status[0] = 1
+    except Exception as e:
+        print(e)
+        print(traceback.print_exc(4))
 
 def environment_process(params, batch_sizes, batch_addresses):
     try:
@@ -457,11 +554,13 @@ if __name__ == "__main__":
     replay_lock = Lock()
 
     processes = [
-        Process(target=local_replay_buffer.transition_upload_process, args=(params, transition_queue, replay_lock)),
+        #Process(target=local_replay_buffer.transition_upload_process, args=(params, transition_queue, replay_lock)),
         Process(target=weight_downloading_process,
                 args=(params, path_index, path_template, path_limit, download_period)),
-        Process(target=replay_buffer_process,
-                args=(params, batch_sizes, batch_addresses, transition_queue, replay_lock)),
+        #Process(target=replay_buffer_process,
+        #        args=(params, batch_sizes, batch_addresses, transition_queue, replay_lock)),
+        Process(target=transition_upload_process,
+                args=(params, batch_sizes, batch_addresses, replay_lock)),
         Process(target=split_environment_process,
                 args=(params, batch_sizes, batch_addresses, 2))]
     # Process(target=environment_process,
