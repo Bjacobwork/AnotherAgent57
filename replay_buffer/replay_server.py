@@ -1,3 +1,4 @@
+import math
 import socket
 import time
 from multiprocessing import Process, shared_memory, Value, Lock, Queue
@@ -154,7 +155,7 @@ def space_allocator(params, config, shared_mem, space_lock, progress_lock, batch
     target_free_space = params['Misc']['target_free_space'] * (1024 ** 3)
     byte_limit = params['Misc']['database_size_limit'] * (1024 ** 3)
     bytes_per_transition = 41840
-    num_episodes_allowed = len(in_progress) * 2
+    num_episodes_allowed = len(in_progress)
 
     while True:
         db_size = cm.get_database_size()
