@@ -25,15 +25,14 @@ For Agent57, the state-value function is decomposed into two identical models. O
 
 ## Script Execution Order
 
-The program is divided into six parts. With the current configuration the learner, evaluator, and weights server must be ran on the same machine. The program must be executed in this order.
+The program is divided into six parts. With the current configuration the learner and evaluator must be ran on the same machine. The program must be executed in this order.
 
  1. MySQL/MariaDB
  2. [replay_server.py][replay]
  3. [bandit_server.py][bandit]
- 4. [weights_server.py][weights]
- 5. [evaluator.py][evaluator]
- 6. [environment.py][environment]
- 7. [learner.py][learner]
+ 4. [evaluator.py][evaluator]
+ 5. [environment.py][environment]
+ 6. [learner.py][learner]
 
 ## Parameters
 

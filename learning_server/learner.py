@@ -1,5 +1,5 @@
 from learning_server.learner_data import LearnerData
-from multiprocessing import Process
+from multiprocessing import Process, Value
 import numpy as np
 import tensorflow as tf
 
@@ -76,9 +76,9 @@ def process_batch(data, dtype, num_actions, N, trace_length, replay_period, retr
     discounted_q = tf.where(tf.convert_to_tensor(data.lost_life), tf.zeros_like(discounted_q), discounted_q)
     q_values = tf.reduce_sum(tf.transpose(one_hot_actions, [1, 0, 2])[:, 1:] * q_values[:, :-1], axis=-1)
     temporal_difference = tf.squeeze(tf.transpose(
-        data.prev_extrinsic_rewards[1:, :batch_size] + tf.expand_dims(beta, 0) * data.prev_intrinsic_rewards[1:,
-                                                                                 :batch_size],
-        [1, 0, 2])) + discounted_q[:, 1:] - q_values
+        data.prev_extrinsic_rewards[1:, :batch_size] + (tf.expand_dims(beta, 0) * data.prev_intrinsic_rewards[1:,
+                                                                                 :batch_size]),
+        [1, 0, 2]),2) + discounted_q[:, 1:] - q_values
 
     q_probs = tf.reduce_sum(
         tf.transpose(one_hot_actions, [1, 0, 2])[:, replay_period + 1:] * q_probs[:, replay_period:-1], axis=-1)
@@ -193,13 +193,13 @@ def process_batch(data, dtype, num_actions, N, trace_length, replay_period, retr
 
     temporal_difference = tf.math.abs(temporal_difference[:, replay_period:])
     data.priority[:] = (
-                eta * tf.reduce_max(temporal_difference, axis=-1) + (1 - eta) * tf.reduce_mean(temporal_difference,
-                                                                                               axis=-1)).numpy()
+            (eta * tf.reduce_max(temporal_difference, axis=-1)) + ((1 - eta) * tf.reduce_mean(temporal_difference,
+                                                                               axis=-1))).numpy()
     data.status[0] = 2
     tf.keras.backend.clear_session()
 
 
-def learn_batch(params, mem_addresses, checkpoint_dir, device, eta=.9):
+def learn_batch(params, mem_addresses, checkpoint_dir, dqn_checkpoint, im_checkpoint, device, eta=.9):
     import traceback
     try:
         import tensorflow as tf
@@ -212,18 +212,8 @@ def learn_batch(params, mem_addresses, checkpoint_dir, device, eta=.9):
         import os
         with tf.device(device):
             batch_data = [LearnerData(params, address) for address in mem_addresses]
-            checkpoint_im = 0
-            checkpoint_dqn = 0
             im_checkpoints = []
             dqn_checkpoints = []
-            for element in os.listdir(checkpoint_dir):
-                if os.path.isfile(checkpoint_dir + "/" + element):
-                    if element.endswith(".h5") and element.startswith("agent57_"):
-                        tokens = element.split("_")
-                        if tokens[-1] == "dqn.h5":
-                            checkpoint_dqn = max(checkpoint_dqn, int(tokens[1]))
-                        if tokens[-1] == "im.h5":
-                            checkpoint_im = max(checkpoint_im, int(tokens[1]))
             dqn_path_template = checkpoint_dir + "/agent57_{}_dqn.h5"
             im_path_template = checkpoint_dir + "/agent57_{}_im.h5"
 
@@ -235,10 +225,12 @@ def learn_batch(params, mem_addresses, checkpoint_dir, device, eta=.9):
             update_every = params['Misc']['target_weight_update'] // (trace_length - replay_period)
             next_update = update_every
 
-            im_model = intrinsic_motivation.get_intrinsic_motivation_model(params, [1],
-                                                                           im_path_template.format(checkpoint_im))
-            target = dqn.get_agent57_model(params, dqn_path_template.format(checkpoint_dqn))
-            online = dqn.get_agent57_model(params, dqn_path_template.format(checkpoint_dqn))
+            with im_checkpoint.get_lock():
+                im_model = intrinsic_motivation.get_intrinsic_motivation_model(params, [1],
+                                                                           im_path_template.format(im_checkpoint.value))
+            with dqn_checkpoint.get_lock():
+                target = dqn.get_agent57_model(params, dqn_path_template.format(dqn_checkpoint.value))
+                online = dqn.get_agent57_model(params, dqn_path_template.format(dqn_checkpoint.value))
             import time
             while True:
                 for data in batch_data:
@@ -250,16 +242,16 @@ def learn_batch(params, mem_addresses, checkpoint_dir, device, eta=.9):
                                       online, im_model, params['Misc']['training_splits'],
                                       params['Misc']['break_training_loop_early'], eta)
                     next_update -= 1
-
+                    print(f"Batch processed in: {(time.time() - timer)}s")
                     if next_update <= 0:
                         print("Updating weights.")
-                        checkpoint_im += 1
-                        checkpoint_dqn += 1
-                        im_model.save_weights(im_path_template.format(checkpoint_im))
-                        online.save_weights(dqn_path_template.format(checkpoint_dqn))
-                        target.load_weights(dqn_path_template.format(checkpoint_dqn))
-                        im_checkpoints.append(checkpoint_im)
-                        dqn_checkpoints.append(checkpoint_dqn)
+                        im_next = im_checkpoint.value + 1
+                        dqn_next = dqn_checkpoint.value + 1
+                        im_model.save_weights(im_path_template.format(im_next))
+                        online.save_weights(dqn_path_template.format(dqn_next))
+                        target.load_weights(dqn_path_template.format(dqn_next))
+                        im_checkpoints.append(im_next)
+                        dqn_checkpoints.append(dqn_next)
                         if len(im_checkpoints) > 3:
                             removing = im_checkpoints.pop(0)
                             if removing % checkpoint_period != 0:
@@ -268,9 +260,12 @@ def learn_batch(params, mem_addresses, checkpoint_dir, device, eta=.9):
                             removing = dqn_checkpoints.pop(0)
                             if removing % checkpoint_period != 0:
                                 os.remove(dqn_path_template.format(removing))
+                        with im_checkpoint.get_lock():
+                            im_checkpoint.value = im_next
+                        with dqn_checkpoint.get_lock():
+                            dqn_checkpoint.value = dqn_next
                         print("Weights updated.")
                         next_update = update_every
-                    print(f"Total time: {(time.time() - timer)}")
     except Exception as e:
         print(traceback.print_exc())
         print(e)
@@ -294,7 +289,7 @@ if __name__ == "__main__":
     import yaml
     import tensorflow as tf
     import os
-
+    from learning_server import weights_server
     with open('../params.yml', 'r') as file:
         params = yaml.full_load(file)
     batch_data = [LearnerData(params) for b in range(params['Misc']['consecutive_training_batches'])]
@@ -302,11 +297,28 @@ if __name__ == "__main__":
     checkpoint_dir = "../weights/checkpoints"
     if not os.path.isdir(checkpoint_dir):
         os.makedirs(checkpoint_dir, exist_ok=True)
+
+    dqn_checkpoint = Value('i', 0)
+    im_checkpoint = Value('i', 0)
+
+    for element in os.listdir(checkpoint_dir):
+        if os.path.isfile(checkpoint_dir + "/" + element):
+            if element.endswith(".h5") and element.startswith("agent57_"):
+                tokens = element.split("_")
+                if tokens[-1] == "dqn.h5":
+                    with dqn_checkpoint.get_lock():
+                        dqn_checkpoint.value = max(dqn_checkpoint.value, int(tokens[1]))
+                if tokens[-1] == "im.h5":
+                    with dqn_checkpoint.get_lock():
+                        im_checkpoint.value = max(im_checkpoint.value, int(tokens[1]))
+
     loading_batches = Process(target=load_batch, args=(params, mem_addresses))
     learning_from_data = Process(target=learn_batch, args=(
-    params, mem_addresses, checkpoint_dir, tf.config.list_logical_devices("GPU")[0].name))
+    params, mem_addresses, checkpoint_dir, dqn_checkpoint, im_checkpoint, tf.config.list_logical_devices("GPU")[0].name))
     updating_data = Process(target=update_batch, args=(params, mem_addresses))
+    hosting_weigths = Process(target=weights_server.server, args=(params, checkpoint_dir, False, dqn_checkpoint, im_checkpoint))
 
     loading_batches.start()
     learning_from_data.start()
     updating_data.start()
+    hosting_weigths.start()

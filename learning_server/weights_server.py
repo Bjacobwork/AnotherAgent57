@@ -10,14 +10,14 @@ def worker(socket, checkpoint_dir, dqn_checkpoint, im_checkpoint):
             client, address = socket.accept()
             with dqn_checkpoint.get_lock():
                 dqn_path = checkpoint_dir + f"/agent57_{dqn_checkpoint.value}_dqn.h5"
-            print(f"Sending {dqn_path}", end='')
+            print(f"\nSending {dqn_path}", end='')
             with open(dqn_path, 'rb') as file:
                 client.send(bytes(str(os.path.getsize(dqn_path)), 'utf-8'))
                 client.sendall(file.read())
             print(f"\rSent {dqn_path}\n {datetime.datetime.now()}\n")
             with im_checkpoint.get_lock():
                 im_path = checkpoint_dir + f"/agent57_{dqn_checkpoint.value}_im.h5"
-            print(f"Sending {im_path}", end='')
+            print(f"\nSending {im_path}", end='')
             with open(im_path, 'rb') as file:
                 client.send(bytes(str(os.path.getsize(im_path)), 'utf-8'))
                 client.sendall(file.read())
@@ -27,7 +27,7 @@ def worker(socket, checkpoint_dir, dqn_checkpoint, im_checkpoint):
             print(e)
 
 
-def server(params, checkpoint_dir):
+def server(params, checkpoint_dir, running_independently=True, dqn_checkpoint= Value('i', 0), im_checkpoint= Value('i', 0)):
     import time
     serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     serversocket.bind((params['Misc']['weights_ip'], params['Misc']['weights_port']))
@@ -47,8 +47,10 @@ def server(params, checkpoint_dir):
     if dqn < 0 or im < 0:
         raise Exception("cannot find valid checkpoints")
 
-    dqn_checkpoint = Value('i', dqn)
-    im_checkpoint = Value('i', im)
+    with dqn_checkpoint.get_lock():
+        dqn_checkpoint.value = dqn
+    with im_checkpoint.get_lock():
+        im_checkpoint.value = im
 
     workers = [Process(target=worker, args=(serversocket, checkpoint_dir, dqn_checkpoint, im_checkpoint)) for i in
                range(params['Misc']['weights_workers'])]
@@ -57,7 +59,7 @@ def server(params, checkpoint_dir):
         p.start()
 
     download_period = params['Misc']['download_period']
-    while True:
+    while running_independently:
         time.sleep(download_period)
         for obj in os.listdir(checkpoint_dir):
             if os.path.isfile(checkpoint_dir + "/" + obj):
@@ -72,6 +74,8 @@ def server(params, checkpoint_dir):
             dqn_checkpoint.value = dqn
         with im_checkpoint.get_lock():
             im_checkpoint.value = im
+    while True:
+        pass
 
 
 if __name__ == "__main__":
