@@ -124,23 +124,17 @@ class ConnectionManager:
         print(len(removing))
         try:
             id_to_remove = iter(removing)
-            clearing = True
-            remove_episode = "DELETE FROM episode "
-            remove_trace = "DELETE FROM trace "
-            remove_transition = "DELETE FROM transition "
-            while clearing:
-                these = []
+            remove_episode = "DELETE FROM episode WHERE episode_id = ?"
+            remove_trace = "DELETE FROM trace WHERE episode_id = ?"
+            remove_transition = "DELETE FROM transition WHERE episode_id = ?"
+            while True:
                 try:
-                    for i in range(16):
-                        eid = next(id_to_remove)
-                        these.append(eid)
+                    eid = next(id_to_remove)
                 except StopIteration:
-                    clearing = False
-                if len(these) > 0:
-                    where = f"WHERE (episode_id) IN ({','.join(str(eid) for eid in these)})"
-                    self.cur.execute(remove_episode + where)
-                    self.cur.execute(remove_trace + where)
-                    self.cur.execute(remove_transition + where)
+                    break
+                self.cur.execute(remove_episode,(eid,))
+                self.cur.execute(remove_trace,(eid,))
+                self.cur.execute(remove_transition,(eid,))
         except Exception as e:
             print(e)
             print(traceback.print_exc())
