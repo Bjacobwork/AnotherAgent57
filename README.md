@@ -30,9 +30,9 @@ The program is divided into six parts. With the current configuration the learne
  1. MySQL/MariaDB
  2. [replay_server.py][replay]
  3. [bandit_server.py][bandit]
- 4. [evaluator.py][evaluator]
- 5. [environment.py][environment]
- 6. [learner.py][learner]
+ 4. [learner.py][learner]
+ 5. [evaluator.py][evaluator]
+ 6. [environment.py][environment]
 
 ## Parameters
 
