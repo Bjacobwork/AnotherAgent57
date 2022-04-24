@@ -36,7 +36,7 @@ The program is divided into six parts. With the current configuration the learne
 
 ## Parameters
 
-The parameters file params.yaml is divided into five sections.
+The parameters file [params.yaml][params] is divided into five sections.
 
 | Section | Description |
 | ------ | ------ |
@@ -132,3 +132,4 @@ BSD 3-Clause
 [evaluator]:<https://github.com/Bjacobwork/AnotherAgent57/blob/main/bandit/evaluator.py>
 [environment]:<https://github.com/Bjacobwork/AnotherAgent57/blob/main/environment_server/environment.py>
 [learner]:<https://github.com/Bjacobwork/AnotherAgent57/blob/main/learning_server/learner.py>
+[params]:<https://github.com/Bjacobwork/AnotherAgent57/blob/main/params.yml>
